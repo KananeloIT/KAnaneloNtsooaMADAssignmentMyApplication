@@ -1,4 +1,4 @@
-package ;
+package com.example.kananelontsooamadassignmentmyapplication;
 
 public class PantryItem {
     private int id;

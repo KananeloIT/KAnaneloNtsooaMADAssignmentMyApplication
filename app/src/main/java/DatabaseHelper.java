@@ -1,4 +1,4 @@
-package com.example.kananelontsooamadassignmentmyappltion;
+package com.example.kananelontsooamadassignmentmyapplication;
 
 import android.content.ContentValues;
 import android.content.Context;

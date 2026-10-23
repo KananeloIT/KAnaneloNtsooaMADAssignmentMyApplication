@@ -1,37 +1,41 @@
 package com.example.kananelontsooamadassignmentmyapplication;
 
-import android.app.AlertDialog;
-import android.content.Context;
-import android.content.Intent;
-import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.LinearLayout;
 import android.widget.TextView;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
 
-public class PantryAdapter extends ArrayAdapter<PantryItem> {
-    private final Context context;
-    private final DatabaseHelper database;
-    private final Runnable refresh;
+public class PantryAdapter extends RecyclerView.Adapter<PantryAdapter.VH> {
+    public interface OnItemClick { void onClick(Ingredient i); }
+    public interface OnItemLongClick { void onLongClick(Ingredient i); }
 
-    public PantryAdapter(Context context, List<PantryItem> items, DatabaseHelper database, Runnable refresh) {
-        super(context, android.R.layout.simple_list_item_1, items); this.context = context; this.database = database; this.refresh = refresh;
+    private final List<Ingredient> items;
+    private final OnItemClick click;
+    private final OnItemLongClick longClick;
+
+    public PantryAdapter(List<Ingredient> items, OnItemClick click, OnItemLongClick longClick) {
+        this.items = items; this.click = click; this.longClick = longClick;
     }
 
-    @Override public View getView(int position, View convertView, ViewGroup parent) {
-        PantryItem item = getItem(position);
-        LinearLayout row = new LinearLayout(context); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(Screen.dp(context, 12), Screen.dp(context, 8), Screen.dp(context, 4), Screen.dp(context, 8)); row.setBackgroundColor(0xFFFFFFFF);
-        LinearLayout info = new LinearLayout(context); info.setOrientation(LinearLayout.VERTICAL);
-        TextView name = Screen.text(context, item.getName(), 17); name.setTypeface(null, 1);
-        String details = item.getQuantity() + " " + item.getUnit() + (item.getExpiryDate().isEmpty() ? "" : "  ·  expires " + item.getExpiryDate());
-        info.addView(name); info.addView(Screen.text(context, details, 13));
-        row.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
-        Button delete = Screen.button(context, "Delete"); delete.setTextSize(12); row.addView(delete);
-        row.setOnClickListener(v -> { Intent i = new Intent(context, IngredientActivity.class); i.putExtra("item_id", item.getId()); i.putExtra("name", item.getName()); i.putExtra("quantity", item.getQuantity()); i.putExtra("unit", item.getUnit()); i.putExtra("expiry", item.getExpiryDate()); context.startActivity(i); });
-        delete.setOnClickListener(v -> new AlertDialog.Builder(context).setTitle("Delete " + item.getName() + "?").setMessage("This removes the ingredient from your pantry.").setNegativeButton("Cancel", null).setPositiveButton("Delete", (d, w) -> { database.deletePantryItem(item.getId()); refresh.run(); }).show());
-        return row;
+    @NonNull @Override public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        return new VH(LayoutInflater.from(parent.getContext()).inflate(android.R.layout.simple_list_item_2, parent, false));
+    }
+
+    @Override public void onBindViewHolder(@NonNull VH h, int position) {
+        Ingredient i = items.get(position);
+        h.text1.setText(i.getName());
+        h.text2.setText(i.getQuantity() + " " + i.getUnit());
+        h.itemView.setOnClickListener(v -> click.onClick(i));
+        h.itemView.setOnLongClickListener(v -> { longClick.onLongClick(i); return true; });
+    }
+
+    @Override public int getItemCount() { return items.size(); }
+
+    static class VH extends RecyclerView.ViewHolder {
+        TextView text1, text2;
+        VH(@NonNull View v) { super(v); text1 = v.findViewById(android.R.id.text1); text2 = v.findViewById(android.R.id.text2); }
     }
 }

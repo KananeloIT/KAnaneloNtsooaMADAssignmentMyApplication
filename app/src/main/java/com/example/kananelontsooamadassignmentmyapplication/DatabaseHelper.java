@@ -9,42 +9,110 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
-    private static final String DB_NAME = "smartpantry.db";
+    private static final String DB_NAME = "pantry.db";
     private static final int DB_VERSION = 1;
-    private static final String TABLE = "pantry_items";
-    private static final String ID = "id", NAME = "name", QUANTITY = "quantity", UNIT = "unit", EXPIRY = "expiry_date";
 
-    public DatabaseHelper(Context context) { super(context, DB_NAME, null, DB_VERSION); }
+    public static final String TABLE_PANTRY = "pantry";
+    public static final String TABLE_RECIPE = "recipes";
+    public static final String TABLE_RECIPE_ING = "recipe_ingredients";
 
-    @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE " + TABLE + " (" + ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " + NAME + " TEXT NOT NULL, " + QUANTITY + " REAL NOT NULL, " + UNIT + " TEXT NOT NULL, " + EXPIRY + " TEXT)");
+    public DatabaseHelper(Context context) {
+        super(context, DB_NAME, null, DB_VERSION);
     }
 
-    @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE);
+    @Override
+    public void onCreate(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE " + TABLE_PANTRY + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, quantity REAL, unit TEXT, expiry TEXT)");
+        db.execSQL("CREATE TABLE " + TABLE_RECIPE + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, r_name TEXT, r_steps TEXT)");
+        db.execSQL("CREATE TABLE " + TABLE_RECIPE_ING + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, recipe_id INTEGER, ri_name TEXT, ri_quantity REAL, ri_unit TEXT)");
+    }
+
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_PANTRY);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_RECIPE);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_RECIPE_ING);
         onCreate(db);
     }
 
-    public long addPantryItem(String name, double quantity, String unit, String expiry) {
-        ContentValues v = values(name, quantity, unit, expiry);
-        return getWritableDatabase().insert(TABLE, null, v);
+    public void addIngredient(String name, double qty, String unit, String expiry) {
+        ContentValues cv = new ContentValues();
+        cv.put("name", name); cv.put("quantity", qty); cv.put("unit", unit); cv.put("expiry", expiry);
+        getWritableDatabase().insert(TABLE_PANTRY, null, cv);
+    }
+
+    public List<Ingredient> getAllIngredients() {
+        List<Ingredient> list = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(TABLE_PANTRY, null, null, null, null, null, "name ASC");
+        while (c.moveToNext()) {
+            list.add(new Ingredient(c.getLong(0), c.getString(1), c.getDouble(2), c.getString(3), c.getString(4)));
+        }
+        c.close();
+        return list;
+    }
+
+    public void updateIngredient(long id, String name, double qty, String unit, String expiry) {
+        ContentValues cv = new ContentValues();
+        cv.put("name", name); cv.put("quantity", qty); cv.put("unit", unit); cv.put("expiry", expiry);
+        getWritableDatabase().update(TABLE_PANTRY, cv, "_id=?", new String[]{String.valueOf(id)});
+    }
+
+    public void deleteIngredient(long id) {
+        getWritableDatabase().delete(TABLE_PANTRY, "_id=?", new String[]{String.valueOf(id)});
+    }
+
+    public Ingredient getIngredient(long id) {
+        Cursor c = getReadableDatabase().query(TABLE_PANTRY, null, "_id=?", new String[]{String.valueOf(id)}, null, null, null);
+        if (c.moveToFirst()) {
+            Ingredient i = new Ingredient(c.getLong(0), c.getString(1), c.getDouble(2), c.getString(3), c.getString(4));
+            c.close(); return i;
+        }
+        c.close(); return null;
+    }
+
+    public long addRecipe(String name, String steps) {
+        ContentValues cv = new ContentValues();
+        cv.put("r_name", name); cv.put("r_steps", steps);
+        return getWritableDatabase().insert(TABLE_RECIPE, null, cv);
+    }
+
+    public void addRecipeIngredient(long recipeId, String name, double qty, String unit) {
+        ContentValues cv = new ContentValues();
+        cv.put("recipe_id", recipeId); cv.put("ri_name", name); cv.put("ri_quantity", qty); cv.put("ri_unit", unit);
+        getWritableDatabase().insert(TABLE_RECIPE_ING, null, cv);
+    }
+
+    public List<Recipe> getAllRecipes() {
+        List<Recipe> recipes = new ArrayList<>();
+        Cursor rc = getReadableDatabase().query(TABLE_RECIPE, null, null, null, null, null, null);
+        while (rc.moveToNext()) {
+            long rid = rc.getLong(0);
+            String rname = rc.getString(1);
+            String steps = rc.getString(2);
+            List<RecipeIngredient> ings = new ArrayList<>();
+            Cursor ic = getReadableDatabase().query(TABLE_RECIPE_ING, null, "recipe_id=?", new String[]{String.valueOf(rid)}, null, null, null);
+            while (ic.moveToNext()) {
+                ings.add(new RecipeIngredient(ic.getString(2), ic.getDouble(3), ic.getString(4)));
+            }
+            ic.close();
+            recipes.add(new Recipe(rid, rname, ings, steps));
+        }
+        rc.close();
+        return recipes;
+    }
+
+    public int getRecipeCount() {
+        Cursor c = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE_RECIPE, null);
+        int n = 0; if (c.moveToFirst()) n = c.getInt(0); c.close(); return n;
+    }
+
+    public void addPantryItem(String n, double amount, String u, String ex) {
+    }
+
+    public void updatePantryItem(int itemId, String n, double amount, String u, String ex) {
     }
 
     public List<PantryItem> getAllPantryItems() {
-        List<PantryItem> items = new ArrayList<>();
-        try (Cursor c = getReadableDatabase().query(TABLE, null, null, null, null, null, NAME + " COLLATE NOCASE ASC")) {
-            while (c.moveToNext()) items.add(new PantryItem(c.getInt(c.getColumnIndexOrThrow(ID)), c.getString(c.getColumnIndexOrThrow(NAME)), c.getDouble(c.getColumnIndexOrThrow(QUANTITY)), c.getString(c.getColumnIndexOrThrow(UNIT)), c.getString(c.getColumnIndexOrThrow(EXPIRY))));
-        }
-        return items;
-    }
-
-    public int updatePantryItem(int id, String name, double quantity, String unit, String expiry) {
-        return getWritableDatabase().update(TABLE, values(name, quantity, unit, expiry), ID + "=?", new String[]{String.valueOf(id)});
-    }
-
-    public int deletePantryItem(int id) { return getWritableDatabase().delete(TABLE, ID + "=?", new String[]{String.valueOf(id)}); }
-
-    private ContentValues values(String name, double quantity, String unit, String expiry) {
-        ContentValues v = new ContentValues(); v.put(NAME, name); v.put(QUANTITY, quantity); v.put(UNIT, unit); v.put(EXPIRY, expiry); return v;
+        return java.util.Collections.emptyList();
     }
 }

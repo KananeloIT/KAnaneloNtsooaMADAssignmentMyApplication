@@ -2,35 +2,70 @@ package com.example.kananelontsooamadassignmentmyapplication;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.View;
-import android.widget.ListView;
-import android.widget.TextView;
+import android.view.MenuItem;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
-    private DatabaseHelper database;
+    private DatabaseHelper db;
     private PantryAdapter adapter;
-    private ListView list;
-    private TextView empty;
+    private RecyclerView recycler;
 
-    @Override protected void onCreate(Bundle state) {
-        super.onCreate(state);
-        database = new DatabaseHelper(this);
-        android.widget.LinearLayout root = Screen.page(this, "My Pantry");
-        root.addView(Screen.text(this, "Keep track of ingredients and their expiry dates.", 15));
-        android.widget.Button add = Screen.button(this, "+  Add ingredient"); add.setOnClickListener(v -> startActivity(new Intent(this, IngredientActivity.class))); root.addView(add, Screen.fill());
-        empty = Screen.text(this, "Your pantry is empty. Add an ingredient to get started.", 15); empty.setGravity(android.view.Gravity.CENTER);
-        list = new ListView(this); list.setDividerHeight(Screen.dp(this, 8)); list.setBackgroundColor(0xFFF8F7F1);
-        root.addView(empty, new android.widget.LinearLayout.LayoutParams(-1, 0, 1)); root.addView(list, new android.widget.LinearLayout.LayoutParams(-1, 0, 1));
-        Screen.navigation(this, root); setContentView(root);
+    @Override protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        db = new DatabaseHelper(this);
+        RecipeSeeder.seedIfEmpty(db);
+
+        recycler = findViewById(R.id.recyclerPantry);
+        recycler.setLayoutManager(new LinearLayoutManager(this));
+
+        // Add Ingredient Button
+        findViewById(R.id.fabAdd).setOnClickListener(v -> startActivity(new Intent(this, AddEditIngredientActivity.class)));
+
+        // Normal Buttons
+        findViewById(R.id.btnViewRecipes).setOnClickListener(v -> startActivity(new Intent(this, SuggestedRecipesActivity.class)));
+        findViewById(R.id.btnSettings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+
+        // BOTTOM NAVIGATION LOGIC
+        BottomNavigationView bottomNav = findViewById(R.id.bottomNav);
+        bottomNav.setOnItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.nav_recipes) {
+                startActivity(new Intent(this, SuggestedRecipesActivity.class));
+                return true;
+            } else if (id == R.id.nav_settings) {
+                startActivity(new Intent(this, SettingsActivity.class));
+                return true;
+            }
+            return false;
+        });
     }
 
-    @Override protected void onResume() { super.onResume(); if (database != null && list != null) refreshItems(); }
-    private void refreshItems() {
-        java.util.List<PantryItem> items = database.getAllPantryItems();
-        if (adapter == null) { adapter = new PantryAdapter(this, items, database, this::refreshItems); list.setAdapter(adapter); }
-        else { adapter.clear(); adapter.addAll(items); adapter.notifyDataSetChanged(); }
-        boolean isEmpty = items.isEmpty(); empty.setVisibility(isEmpty ? View.VISIBLE : View.GONE); list.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
+    @Override protected void onResume() {
+        super.onResume();
+        loadPantry();
     }
-    @Override protected void onDestroy() { if (database != null) database.close(); super.onDestroy(); }
+
+    private void loadPantry() {
+        List<Ingredient> list = db.getAllIngredients();
+        adapter = new PantryAdapter(list,
+                i -> { // Click to edit
+                    Intent intent = new Intent(this, AddEditIngredientActivity.class);
+                    intent.putExtra("INGREDIENT_ID", i.getId());
+                    startActivity(intent);
+                },
+                i -> new AlertDialog.Builder(this) // Long press to delete
+                        .setTitle("Delete " + i.getName() + "?")
+                        .setPositiveButton("Yes", (d, w) -> { db.deleteIngredient(i.getId()); loadPantry(); })
+                        .setNegativeButton("No", null).show()
+        );
+        recycler.setAdapter(adapter);
+    }
 }
